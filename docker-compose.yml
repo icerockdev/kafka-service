@@ -1,0 +1,59 @@
+version: '3'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:5.3.1
+    logging: &logging_config
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+#    ports:
+#      - "2181:2181"
+    restart: always
+    stop_grace_period: 1m
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/etc/zookeeper/secrets
+      - zookeeper-log:/var/lib/zookeeper/log
+      - zookeeper-secrets:/var/lib/zookeeper/data
+  kafka:
+    image: confluentinc/cp-enterprise-kafka:5.3.1
+    logging: *logging_config
+    hostname: kafka
+    ports:
+      - 127.0.0.1:9092:9092
+    restart: always
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+#      KAFKA_ADVERTISED_HOST_NAME: "kafka"
+#      KAFKA_ADVERTISED_PORT: "9092"
+      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka:29092
+      CONFLUENT_METRICS_REPORTER_ZOOKEEPER_CONNECT: zookeeper:2181
+      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      CONFLUENT_METRICS_ENABLE: 'true'
+      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+    volumes:
+      - kafka-secrets:/etc/kafka/secrets
+      - kafka-data:/var/lib/kafka/data
+    depends_on:
+      - zookeeper
+
+volumes:
+  kafka-data:
+    driver: local
+  kafka-secrets:
+    driver: local
+  zookeeper-data:
+    driver: local
+  zookeeper-log:
+    driver: local
+  zookeeper-secrets:
+    driver: local
