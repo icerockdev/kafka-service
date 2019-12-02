@@ -14,9 +14,6 @@ implementation("com.icerockdev.service:kafka-service:0.0.1")
 ## Koin configure
 
 ### include dependency
-````groovy
-implementation project(":service:kafka")
-````
 
 ````kotlin
 // Porducer
