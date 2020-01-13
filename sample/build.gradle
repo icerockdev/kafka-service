@@ -30,7 +30,8 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:$coroutines_version")
 
-    implementation("com.icerockdev.service:kafka-service:0.0.1")
+    implementation("com.icerockdev.service:kafka-service:0.0.2")
+//    implementation project(":kafka-service")
 }
 
 compileKotlin {

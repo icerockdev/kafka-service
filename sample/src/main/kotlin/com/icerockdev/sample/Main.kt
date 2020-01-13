@@ -4,24 +4,38 @@
 
 package com.icerockdev.sample
 
-import com.icerockdev.service.kafka.IKafkaConsumer
-import com.icerockdev.service.kafka.KafkaConsumerExecutionPool
-import com.icerockdev.service.kafka.KafkaConsumerFactory
-import com.icerockdev.service.kafka.KafkaSender
+import com.fasterxml.jackson.module.kotlin.jacksonTypeRef
+import com.icerockdev.service.kafka.*
 import kotlinx.coroutines.Dispatchers
+import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.common.serialization.LongSerializer
+import org.apache.kafka.common.serialization.StringDeserializer
+import java.net.InetAddress
 import java.time.Duration
 import java.util.*
 
 object Main {
     @JvmStatic
     fun main(args: Array<String>) {
+        val hostname: String = InetAddress.getLocalHost().hostName
+        // specify unique client id by hostname and app name
+        val clientId = "app-name::${hostname}"
 
-        val service = ProducerService()
-        val consumer = TestKafkaConsumer()
+        val servers = "localhost:9092"
+        val groupId = "group"
+        val topic = "topic"
+
+        println(clientId)
+
+        val service = TestProducerService(servers, clientId, topic)
+        val consumer = TestKafkaConsumer(servers, groupId, clientId)
         val executor = KafkaConsumerExecutionPool(Dispatchers.IO)
-        consumer.run(executor, KAFKA_TOPIC)
+        consumer.run(executor, topic)
 
-        for (i in 1..20) {
+        for (i in 1..9) {
+            service.sendAsyncData("Sanded value: $i")
+        }
+        for (i in 10..20) {
             service.sendData("Sanded value: $i")
         }
 
@@ -34,45 +48,64 @@ object Main {
     }
 }
 
-const val KAFKA_SERVERS = "localhost:9092"
-const val KAFKA_CLIENT_ID = "client.id"
-const val KAFKA_TOPIC = "topic"
-const val KAFKA_GROUP_ID = "group"
-
-
-class ProducerService : AutoCloseable {
-    private val authProducer = KafkaSender<String>(
-        KAFKA_SERVERS,
-        KAFKA_CLIENT_ID
-    )
+class TestProducerService(servers: String, clientId: String, private val topic: String) : AutoCloseable {
+    private val producer = KafkaProducerBuilder()
+//        .applyTransactional(KAFKA_TRANSACTION_ID) // supported only for 3 brokers and more
+        .applyIdempotence()
+        .applyTimeout()
+        .applyBuffering()
+        .build<Long, String>(
+            servers = servers,
+            clientId = clientId,
+            keySerializer = LongSerializer(),
+            valueSerializer = ObjectSerializer()
+        )
 
     fun sendData(model: String): Boolean {
-        return authProducer.send(KAFKA_TOPIC, model)
+        val time = System.currentTimeMillis()
+        return KafkaSender.send(producer, topic, time, model)
     }
 
+    fun sendAsyncData(model: String) {
+        val time = System.currentTimeMillis()
+        KafkaSender.sendAsync(producer, topic, time, model)
+    }
 
     override fun close() {
-        authProducer.close()
+        producer.flush()
+        producer.close()
     }
 }
 
-class TestKafkaConsumer(): IKafkaConsumer {
+class TestKafkaConsumer(servers: String, groupId: String, clientId: String) : IKafkaConsumer {
 
-    private val consumerAuthClient =
-        KafkaConsumerFactory.createConsumer<String>(
-            KAFKA_SERVERS,
-            resetOffset = KafkaConsumerFactory.Offset.LATEST,
-            groupId = KAFKA_GROUP_ID
-        )
+    private val consumer =
+        KafkaConsumerBuilder()
+            .applyReadOpt()
+            .applyIsolation(KafkaConsumerBuilder.IsolationLevel.READ_COMMITTED)
+            .apply {
+                with(props) {
+                    this[ConsumerConfig.FETCH_MAX_BYTES_CONFIG] = 50 * 1024 * 1024
+                    this[ConsumerConfig.AUTO_OFFSET_RESET_CONFIG] = KafkaConsumerBuilder.Offset.LATEST.value
+                }
+            }
+            .build<String, String>(
+                servers,
+                groupId,
+                clientId,
+                StringDeserializer(),
+                ObjectDeserializer(jacksonTypeRef())
+            )
+
 
     override fun run(executor: KafkaConsumerExecutionPool, topic: String) {
         executor.runExecutor(
-            consumer = consumerAuthClient,
+            consumer = consumer,
             topicList = Collections.singletonList(topic),
             pollWait = Duration.ofMillis(100)
         ) {
             this.forEach { record ->
-                // apply readed values
+                // apply values
                 println("Read value: ${record.value()}")
             }
             true
@@ -81,6 +114,6 @@ class TestKafkaConsumer(): IKafkaConsumer {
     }
 
     override fun close() {
-        consumerAuthClient.close()
+        consumer.close()
     }
 }

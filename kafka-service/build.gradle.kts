@@ -13,7 +13,7 @@ apply(plugin = "java")
 apply(plugin = "kotlin")
 
 group = "com.icerockdev.service"
-version = "0.0.1"
+version = "0.0.2"
 
 val sourcesJar by tasks.registering(Jar::class) {
     classifier = "sources"
@@ -35,10 +35,10 @@ dependencies {
     // https://mvnrepository.com/artifact/com.fasterxml.jackson.datatype/jackson-datatype-joda
     implementation(group = "com.fasterxml.jackson.datatype", name = "jackson-datatype-joda", version = properties["jackson_version"].toString())
     // https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-kotlin
-    implementation(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = properties["jackson_version"].toString())
-    implementation(group = "com.fasterxml.jackson.core", name = "jackson-core", version = properties["jackson_version"].toString())
+    api(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = properties["jackson_version"].toString())
+    api(group = "com.fasterxml.jackson.core", name = "jackson-core", version = properties["jackson_version"].toString())
     // https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-kotlin
-    implementation(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = properties["jackson_version"].toString())
+    api(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = properties["jackson_version"].toString())
     implementation("joda-time:joda-time:${properties["jodatime_version"]}")
 }
 

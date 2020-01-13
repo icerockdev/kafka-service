@@ -4,31 +4,23 @@
 
 package com.icerockdev.service.kafka
 
+import org.apache.kafka.clients.producer.Producer
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common.errors.InvalidPidMappingException
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
-class KafkaSender<T : Any>(
-    servers: String,
-    clientId: String
-) :
-    AutoCloseable {
-
+object KafkaSender {
     private val logger: Logger = LoggerFactory.getLogger(KafkaSender::class.java)
-    private val producer =
-        KafkaProducerFactory.createProducer<T>(
-            servers = servers,
-            clientId = clientId
-        )
 
-    fun send(topic: String, data: T): Boolean {
+    fun <K : Any, V : Any> send(producer: Producer<K, V>, topic: String, key: K, value: V): Boolean {
         val time = System.currentTimeMillis()
 
         try {
-            val record: ProducerRecord<String, T> = ProducerRecord(
+            val record: ProducerRecord<K, V> = ProducerRecord(
                 topic,
-                time.toString(),
-                data
+                key,
+                value
             )
 
             val metadata = producer.send(record).get()
@@ -41,17 +33,18 @@ class KafkaSender<T : Any>(
                 )
             )
             return true
+        } catch (exception: InvalidPidMappingException) {
+            // retry after transaction expire (for transactions)
+            return send(producer, topic, key, value)
         } catch (exception: Exception) {
             logger.error(exception.localizedMessage, exception)
             return false
-        } finally {
-            producer.flush()
         }
     }
 
-    fun sendAsync(topic: String, data: T) {
+    fun <K : Any, V : Any> sendAsync(producer: Producer<K, V>, topic: String, key: K, data: V) {
         val time = System.currentTimeMillis()
-        val record: ProducerRecord<String, T> = ProducerRecord(topic, time.toString(), data)
+        val record: ProducerRecord<K, V> = ProducerRecord(topic, key, data)
 
         producer.send(record) { metadata, exception ->
             val elapsedTime = System.currentTimeMillis() - time
@@ -64,13 +57,12 @@ class KafkaSender<T : Any>(
                     )
                 )
             } else {
+                if (exception is InvalidPidMappingException) {
+                    // retry after transaction expire (for transactions)
+                    return@send sendAsync(producer, topic, key, data)
+                }
                 logger.error(exception.localizedMessage, exception)
             }
         }
-    }
-
-    override fun close() {
-        producer.flush()
-        producer.close()
     }
 }

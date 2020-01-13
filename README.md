@@ -8,7 +8,7 @@ repositories {
 }
 
 // Append dependency
-implementation("com.icerockdev.service:kafka-service:0.0.1")
+implementation("com.icerockdev.service:kafka-service:0.0.2")
 ````
 
 ## Koin configure
@@ -16,24 +16,23 @@ implementation("com.icerockdev.service:kafka-service:0.0.1")
 ### include dependency
 
 ````kotlin
-// Porducer
-    single(named("authTokenProducer")) {
-        KafkaSender(
-            appConf.getString("kafka.servers"),
-            appConf.getString("kafka.clientId"),
-            AuthTokenDto::class
-        )
-    }
+// Producer
+single(TestProducerService(
+    appConf.getString("kafka.servers"),
+    appConf.getString("kafka.clientId"),
+    "topicName"
+))
+
+// Consumer
+single(TestKafkaConsumer(
+    appConf.getString("kafka.servers"),
+    appConf.getString("kafka.groupId"),
+    appConf.getString("kafka.clientId")
+))
 
 // Executor
 single {
     KafkaConsumerExecutionPool(Dispatchers.IO)
-}
-````
-
-````kotlin
-class Container : KoinComponent {
-    val authTokenProducer: KafkaSender<AuthTokenDto> by inject(named("authTokenProducer"))
 }
 ````
 
@@ -44,49 +43,82 @@ kafka {
     clientId = "auth_service"
 }
 ````
+## Producer definition
+````kotlin
+class TestProducerService(servers: String, clientId: String, private val topic: String) : AutoCloseable {
+    private val producer = KafkaProducerBuilder()
+//        .applyTransactional(KAFKA_TRANSACTION_ID) // supported only for 3 brokers and more
+        .applyIdempotence()
+        .applyTimeout()
+        .applyBuffering()
+        .build<Long, String>(
+            servers = servers,
+            clientId = clientId,
+            keySerializer = LongSerializer(),
+            valueSerializer = ObjectSerializer()
+        )
+
+    fun sendData(model: String): Boolean {
+        val time = System.currentTimeMillis()
+        return KafkaSender.send(producer, topic, time, model)
+    }
+
+    fun sendAsyncData(model: String) {
+        val time = System.currentTimeMillis()
+        KafkaSender.sendAsync(producer, topic, time, model)
+    }
+
+    override fun close() {
+        producer.flush()
+        producer.close()
+    }
+}
+````
 
 ## Consumer definition
 ````kotlin
-fun runConsumer(topic: String) {
-    val consumer =
-        KafkaConsumerFactory.createConsumer<AuthTokenDto>(
-            servers = "server:port,server2:port",
-            groupId = "consumer_group_name"
-        )
+class TestKafkaConsumer(servers: String, groupId: String, clientId: String) : IKafkaConsumer {
 
-    executor.runExecutor(
-        consumer = consumer,
-        topicList = Collections.singletonList(topic),
-        pollWait = Duration.ofMillis(100)
-    ) {
-        this.forEach { record ->
-            println("Record Key " + record.key())
-            println("Record value " + record.value())
+    private val consumer =
+        KafkaConsumerBuilder()
+            .applyReadOpt()
+            .applyIsolation(KafkaConsumerBuilder.IsolationLevel.READ_COMMITTED)
+            .apply {
+                with(props) {
+                    this[ConsumerConfig.FETCH_MAX_BYTES_CONFIG] = 50 * 1024 * 1024
+                    this[ConsumerConfig.AUTO_OFFSET_RESET_CONFIG] = KafkaConsumerBuilder.Offset.LATEST.value
+                }
+            }
+            .build<String, String>(
+                servers,
+                groupId,
+                clientId,
+                StringDeserializer(),
+                ObjectDeserializer(jacksonTypeRef())
+            )
+
+
+    override fun run(executor: KafkaConsumerExecutionPool, topic: String) {
+        executor.runExecutor(
+            consumer = consumer,
+            topicList = Collections.singletonList(topic),
+            pollWait = Duration.ofMillis(100)
+        ) {
+            this.forEach { record ->
+                // apply values
+                println("Read value: ${record.value()}")
+            }
+            true
         }
-        true
+
+    }
+
+    override fun close() {
+        consumer.close()
     }
 }
 ````
 ### Required correct shutdown executors (AutoCloseable)
-
-## Send data example
-````kotlin
-fun runProducer(sendMessageCount: Int, topic: String) {
-    val sender = koinContainer.authTokenProducer
-
-    val time = System.currentTimeMillis()
-    for (index in time until time + sendMessageCount) {
-        val t = AuthTokenDto(
-            generateAuthToken(),
-            "dddd",
-            index.toInt(),
-            DateTime.now()
-        )
-
-        sender.send(topic, t)
-    }
-}
-````
 
 ### Warning! Do not change stored data format (or save backward compatibility)
 
