@@ -13,43 +13,41 @@ apply(plugin = "java")
 apply(plugin = "kotlin")
 
 group = "com.icerockdev.service"
-version = "0.0.2"
+version = "0.1.0"
 
 val sourcesJar by tasks.registering(Jar::class) {
-    classifier = "sources"
+    archiveClassifier.set("sources")
     from(sourceSets.main.get().allSource)
 }
 
 dependencies {
     // kotlin
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${properties["kotlin_version"]}")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${properties["coroutines_version"]}")
     // logging
     implementation ("ch.qos.logback:logback-classic:${properties["logback_version"]}")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:${properties["coroutines_version"]}")
-
     // https://mvnrepository.com/artifact/org.apache.kafka/kafka-clients
-    api(group = "org.apache.kafka", name = "kafka-clients", version = properties["kafka_api"].toString())
+    api("org.apache.kafka:kafka-clients:${properties["kafka_api"]}")
 
     // json support
     // https://mvnrepository.com/artifact/com.fasterxml.jackson.datatype/jackson-datatype-joda
-    implementation(group = "com.fasterxml.jackson.datatype", name = "jackson-datatype-joda", version = properties["jackson_version"].toString())
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-joda:${properties["jackson_version"]}")
     // https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-kotlin
-    api(group = "com.fasterxml.jackson.core", name = "jackson-databind", version = properties["jackson_version"].toString())
-    api(group = "com.fasterxml.jackson.core", name = "jackson-core", version = properties["jackson_version"].toString())
+    api("com.fasterxml.jackson.core:jackson-databind:${properties["jackson_version"]}")
+    api("com.fasterxml.jackson.core:jackson-core:${properties["jackson_version"]}")
     // https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-kotlin
-    api(group = "com.fasterxml.jackson.module", name = "jackson-module-kotlin", version = properties["jackson_version"].toString())
+    api("com.fasterxml.jackson.module:jackson-module-kotlin:${properties["jackson_version"]}")
     implementation("joda-time:joda-time:${properties["jodatime_version"]}")
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8.toString()
+        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 }
 
