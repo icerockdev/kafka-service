@@ -30,8 +30,8 @@ include(":kafka-service")
 //
 val properties = startParameter.projectProperties
 
-// ./gradlew -PlibraryPublish publishToMavenLocal
-// ./gradlew -DBINTRAY_USER=user -DBINTRAY_KEY=key -PlibraryPublish :kafka-service:publish
+// ./gradlew -PlibraryPublish -PlibraryPublishToMavenLocal publishToMavenLocal
+// ./gradlew -PlibraryPublish :kafka-service:publish
 val libraryPublish: Boolean = properties.containsKey("libraryPublish")
 if(!libraryPublish) {
     include(":sample")
