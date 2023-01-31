@@ -7,7 +7,6 @@ package com.icerockdev.service.kafka
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.Partitioner
 import org.apache.kafka.clients.producer.ProducerConfig
-import org.apache.kafka.clients.producer.internals.DefaultPartitioner
 import org.apache.kafka.common.serialization.Serializer
 import java.util.*
 import kotlin.reflect.KClass
@@ -29,7 +28,11 @@ class KafkaProducerBuilder {
         return this
     }
 
-    fun applyTimeout(lingerMs: Int = 5, requestTimeoutMs: Int = 500, deliveryTimeoutMs: Int = 1000): KafkaProducerBuilder {
+    fun applyTimeout(
+        lingerMs: Int = 5,
+        requestTimeoutMs: Int = 500,
+        deliveryTimeoutMs: Int = 1000
+    ): KafkaProducerBuilder {
         props[ProducerConfig.LINGER_MS_CONFIG] = lingerMs
         props[ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG] = requestTimeoutMs
         props[ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG] = deliveryTimeoutMs
@@ -45,13 +48,16 @@ class KafkaProducerBuilder {
     fun <K : Any, V : Any> build(
         servers: String,
         clientId: String,
-        partitionerClass: KClass<out Partitioner> = DefaultPartitioner::class,
+        partitionerClass: KClass<out Partitioner>? = null,
         keySerializer: Serializer<K>,
         valueSerializer: Serializer<V>
     ): KafkaProducer<K, V> {
         props[ProducerConfig.BOOTSTRAP_SERVERS_CONFIG] = servers
         props[ProducerConfig.CLIENT_ID_CONFIG] = clientId
-        props[ProducerConfig.PARTITIONER_CLASS_CONFIG] = partitionerClass.java.name
+        partitionerClass?.also {
+            props[ProducerConfig.PARTITIONER_CLASS_CONFIG] = it.java.name
+        }
+
 
         val consumer = KafkaProducer(
             props,
